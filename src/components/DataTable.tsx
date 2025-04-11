@@ -1,10 +1,34 @@
 
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, Download, Filter, Search } from "lucide-react";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Download, 
+  Filter, 
+  Search,
+  ChevronUp,
+  ChevronDown,
+  Calendar
+} from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { addDays, format, subDays } from "date-fns";
 
 // Define types for our data
 type ResponseData = {
@@ -19,7 +43,7 @@ type ResponseData = {
 
 export function DataTable() {
   // Mock data for the table
-  const responses: ResponseData[] = [
+  const initialResponses: ResponseData[] = [
     {
       id: 1001,
       date: "2025-04-10",
@@ -85,6 +109,83 @@ export function DataTable() {
     },
   ];
 
+  // State management
+  const [responses, setResponses] = useState<ResponseData[]>(initialResponses);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState<"today" | "last7days" | "custom" | "all">("all");
+  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [sortConfig, setSortConfig] = useState<{ key: keyof ResponseData | null; direction: 'ascending' | 'descending' | null }>({
+    key: null,
+    direction: null,
+  });
+
+  // Apply search and filter
+  useEffect(() => {
+    let filteredData = [...initialResponses];
+    
+    // Apply search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredData = filteredData.filter(
+        (item) =>
+          item.id.toString().includes(query) ||
+          item.date.toLowerCase().includes(query) ||
+          item.rating.toString().includes(query) ||
+          item.comment.toLowerCase().includes(query) ||
+          item.branch.toLowerCase().includes(query) ||
+          item.channel.toLowerCase().includes(query) ||
+          item.sentiment.toLowerCase().includes(query)
+      );
+    }
+    
+    // Apply date filter
+    if (dateFilter !== "all") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (dateFilter === "today") {
+        const todayStr = format(today, "yyyy-MM-dd");
+        filteredData = filteredData.filter((item) => item.date === todayStr);
+      } else if (dateFilter === "last7days") {
+        const sevenDaysAgo = subDays(today, 7);
+        filteredData = filteredData.filter((item) => {
+          const itemDate = new Date(item.date);
+          return itemDate >= sevenDaysAgo && itemDate <= today;
+        });
+      } else if (dateFilter === "custom" && customDateRange.from) {
+        const fromDate = customDateRange.from;
+        const toDate = customDateRange.to || fromDate;
+        
+        // Set time to end of day for the to date
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        
+        filteredData = filteredData.filter((item) => {
+          const itemDate = new Date(item.date);
+          return itemDate >= fromDate && itemDate <= endDate;
+        });
+      }
+    }
+    
+    // Apply sorting
+    if (sortConfig.key) {
+      filteredData.sort((a, b) => {
+        if (a[sortConfig.key!] < b[sortConfig.key!]) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (a[sortConfig.key!] > b[sortConfig.key!]) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
+    setResponses(filteredData);
+  }, [searchQuery, dateFilter, customDateRange, sortConfig, initialResponses]);
+
   const getSentimentColor = (sentiment: string): string => {
     switch (sentiment) {
       case "positive":
@@ -104,6 +205,58 @@ export function DataTable() {
     return "text-likert-negative";
   };
 
+  const handleSort = (key: keyof ResponseData) => {
+    let direction: 'ascending' | 'descending' | null = 'ascending';
+    
+    if (sortConfig.key === key) {
+      if (sortConfig.direction === 'ascending') {
+        direction = 'descending';
+      } else if (sortConfig.direction === 'descending') {
+        direction = null;
+      }
+    }
+    
+    setSortConfig({ key: direction ? key : null, direction });
+  };
+
+  const getSortIcon = (key: keyof ResponseData) => {
+    if (sortConfig.key !== key) {
+      return null;
+    }
+    return sortConfig.direction === 'ascending' ? 
+      <ChevronUp className="h-4 w-4 inline ml-1" /> : 
+      <ChevronDown className="h-4 w-4 inline ml-1" />;
+  };
+
+  const handleExport = () => {
+    // Convert the data to CSV
+    const headers = ["ID", "Date", "Rating", "Comment", "Branch", "Channel", "Sentiment"];
+    const csvData = [
+      headers.join(","),
+      ...responses.map(item => [
+        item.id,
+        item.date,
+        item.rating,
+        `"${item.comment.replace(/"/g, '""')}"`, // Escape quotes in comments
+        item.branch,
+        item.channel,
+        item.sentiment
+      ].join(","))
+    ].join("\n");
+    
+    // Create a Blob with the CSV data
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a link element to download the CSV
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `responses_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -119,13 +272,71 @@ export function DataTable() {
                 type="search"
                 placeholder="Search responses..."
                 className="w-full md:w-64 pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Filter className="h-4 w-4" />
-              <span>Filter</span>
-            </Button>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                  <Filter className="h-4 w-4" />
+                  <span>Filter</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Filter by date</h4>
+                  <Select
+                    value={dateFilter}
+                    onValueChange={(value: "today" | "last7days" | "custom" | "all") => setDateFilter(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select date range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="last7days">Last 7 days</SelectItem>
+                      <SelectItem value="custom">Custom range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {dateFilter === "custom" && (
+                    <div className="border rounded-md p-3">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center">
+                          <CalendarComponent
+                            mode="range"
+                            selected={{
+                              from: customDateRange.from,
+                              to: customDateRange.to
+                            }}
+                            onSelect={(range) => setCustomDateRange(range || { from: undefined, to: undefined })}
+                            className="rounded-md border"
+                          />
+                        </div>
+                        <div className="flex gap-2 justify-between text-sm">
+                          <div>
+                            <p className="font-medium">From</p>
+                            <p>{customDateRange.from ? format(customDateRange.from, "PP") : "Pick a date"}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">To</p>
+                            <p>{customDateRange.to ? format(customDateRange.to, "PP") : "Pick a date"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1"
+              onClick={handleExport}
+            >
               <Download className="h-4 w-4" />
               <span>Export</span>
             </Button>
@@ -137,13 +348,43 @@ export function DataTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Rating</TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("id")}
+                >
+                  ID {getSortIcon("id")}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("date")}
+                >
+                  Date {getSortIcon("date")}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("rating")}
+                >
+                  Rating {getSortIcon("rating")}
+                </TableHead>
                 <TableHead className="w-[300px]">Comment</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Sentiment</TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("branch")}
+                >
+                  Branch {getSortIcon("branch")}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("channel")}
+                >
+                  Channel {getSortIcon("channel")}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer"
+                  onClick={() => handleSort("sentiment")}
+                >
+                  Sentiment {getSortIcon("sentiment")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -175,7 +416,7 @@ export function DataTable() {
 
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">7</span> of{" "}
+            Showing <span className="font-medium">{responses.length}</span> of{" "}
             <span className="font-medium">3,842</span> responses
           </p>
           <div className="flex items-center space-x-2">

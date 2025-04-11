@@ -3,16 +3,29 @@ import { Bell, HelpCircle, Search, Settings, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "./ThemeToggle";
+import { Link, useLocation } from "react-router-dom";
 
 export function Navbar() {
+  const location = useLocation();
+  
   return (
     <nav className="border-b border-border px-4 py-3 bg-background">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <div className="text-xl font-bold text-primary mr-8">Likert.AI Insights</div>
+          <Link to="/" className="text-xl font-bold text-primary mr-8">Likert.AI Insights</Link>
           <div className="hidden md:flex space-x-6">
-            <a href="#" className="text-sm font-medium hover:text-primary">Dashboard</a>
-            <a href="#" className="text-sm font-medium hover:text-primary">Reports</a>
+            <Link 
+              to="/" 
+              className={`text-sm font-medium ${location.pathname === '/' ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Dashboard
+            </Link>
+            <Link 
+              to="/reports" 
+              className={`text-sm font-medium ${location.pathname === '/reports' ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Reports
+            </Link>
             <a href="#" className="text-sm font-medium hover:text-primary">Analytics</a>
             <a href="#" className="text-sm font-medium hover:text-primary">Management</a>
           </div>
