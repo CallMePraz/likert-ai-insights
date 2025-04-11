@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,6 @@ import {
 } from "@/components/ui/pagination";
 import { Search, PlusCircle, Trash2, PenSquare, Eye, UserPlus, Filter, Download } from "lucide-react";
 
-// Mock user data
 const initialUsers = [
   { 
     id: 1, 
@@ -154,31 +152,25 @@ const UserManagement = () => {
   
   const usersPerPage = 5;
 
-  // Filter and search users
   const filteredUsers = users.filter(user => {
-    // Apply search
     const matchesSearch = 
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.status.toLowerCase().includes(searchQuery.toLowerCase());
       
-    // Apply role filter
     const matchesRole = roleFilter === "All" || user.role === roleFilter;
     
-    // Apply status filter  
     const matchesStatus = statusFilter === "All" || user.status === statusFilter;
     
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  // Calculate pagination
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
-  // Handle user form submission
   const handleAddUser = () => {
     const id = users.length > 0 ? Math.max(...users.map(user => user.id)) + 1 : 1;
     const currentDate = new Date().toISOString().split('T')[0];
@@ -199,12 +191,10 @@ const UserManagement = () => {
     setIsAddUserOpen(false);
   };
 
-  // Handle user deletion
   const handleDeleteUser = (id: number) => {
     setUsers(users.filter(user => user.id !== id));
   };
 
-  // Handle pagination
   const goToPage = (page: number) => {
     setCurrentPage(page);
   };
@@ -440,11 +430,32 @@ const UserManagement = () => {
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious 
-                      onClick={prevPage} 
-                      disabled={currentPage === 1}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                    />
+                    {currentPage === 1 ? (
+                      <Button 
+                        variant="outline"
+                        size="icon"
+                        disabled
+                        className="cursor-not-allowed opacity-50"
+                        onClick={() => {}}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4"
+                        >
+                          <path d="m15 18-6-6 6-6" />
+                        </svg>
+                      </Button>
+                    ) : (
+                      <PaginationPrevious onClick={prevPage} />
+                    )}
                   </PaginationItem>
                   
                   {Array.from({ length: Math.min(totalPages, 3) }).map((_, i) => {
@@ -462,11 +473,32 @@ const UserManagement = () => {
                   })}
                   
                   <PaginationItem>
-                    <PaginationNext 
-                      onClick={nextPage} 
-                      disabled={currentPage === totalPages}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                    />
+                    {currentPage === totalPages ? (
+                      <Button 
+                        variant="outline"
+                        size="icon"
+                        disabled
+                        className="cursor-not-allowed opacity-50"
+                        onClick={() => {}}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4"
+                        >
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      </Button>
+                    ) : (
+                      <PaginationNext onClick={nextPage} />
+                    )}
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
