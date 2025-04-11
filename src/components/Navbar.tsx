@@ -1,5 +1,5 @@
 
-import { Bell, HelpCircle, Search, Settings, UserCircle } from "lucide-react";
+import { Bell, HelpCircle, Search, Settings, UserCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "./ThemeToggle";
@@ -25,6 +25,12 @@ export function Navbar() {
               className={`text-sm font-medium ${location.pathname === '/reports' ? 'text-primary' : 'hover:text-primary'}`}
             >
               Reports
+            </Link>
+            <Link 
+              to="/users" 
+              className={`text-sm font-medium ${location.pathname === '/users' ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              User Management
             </Link>
             <a href="#" className="text-sm font-medium hover:text-primary">Analytics</a>
             <a href="#" className="text-sm font-medium hover:text-primary">Management</a>

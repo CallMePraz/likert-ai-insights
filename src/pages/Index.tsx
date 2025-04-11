@@ -5,6 +5,8 @@ import { MetricsCards } from "@/components/MetricsCards";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
 import { TopInsightsArea } from "@/components/TopInsightsArea";
 import { DataTable } from "@/components/DataTable";
+import { IndonesiaMap } from "@/components/IndonesiaMap";
+import { TopPerformanceTables } from "@/components/TopPerformanceTables";
 
 const Index = () => {
   return (
@@ -17,20 +19,11 @@ const Index = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <SentimentAnalysis />
           <div className="md:col-span-2">
-            <div className="h-full flex items-center justify-center p-6 border rounded-md bg-card card-shadow">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">AI-Powered Trend Analysis</h3>
-                <p className="text-muted-foreground mb-4">
-                  Historical data with predictive insights for future trends
-                </p>
-                <div className="p-4 bg-primary/5 border border-primary/20 rounded-md inline-block">
-                  <p className="text-sm">Chart visualization will be displayed here</p>
-                </div>
-              </div>
-            </div>
+            <IndonesiaMap />
           </div>
         </div>
         
+        <TopPerformanceTables />
         <TopInsightsArea />
         <DataTable />
       </div>
