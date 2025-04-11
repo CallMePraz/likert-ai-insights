@@ -29,8 +29,16 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { addDays, format, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
-// Define types for our data
 type ResponseData = {
   id: number;
   date: string;
@@ -42,7 +50,6 @@ type ResponseData = {
 };
 
 export function DataTable() {
-  // Mock data for the table
   const initialResponses: ResponseData[] = [
     {
       id: 1001,
@@ -109,7 +116,6 @@ export function DataTable() {
     },
   ];
 
-  // State management
   const [responses, setResponses] = useState<ResponseData[]>(initialResponses);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<"today" | "last7days" | "custom" | "all">("all");
@@ -121,12 +127,13 @@ export function DataTable() {
     key: null,
     direction: null,
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(responses.length / itemsPerPage);
 
-  // Apply search and filter
   useEffect(() => {
     let filteredData = [...initialResponses];
     
-    // Apply search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filteredData = filteredData.filter(
@@ -141,7 +148,6 @@ export function DataTable() {
       );
     }
     
-    // Apply date filter
     if (dateFilter !== "all") {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -159,7 +165,6 @@ export function DataTable() {
         const fromDate = customDateRange.from;
         const toDate = customDateRange.to || fromDate;
         
-        // Set time to end of day for the to date
         const endDate = new Date(toDate);
         endDate.setHours(23, 59, 59, 999);
         
@@ -170,7 +175,6 @@ export function DataTable() {
       }
     }
     
-    // Apply sorting
     if (sortConfig.key) {
       filteredData.sort((a, b) => {
         if (a[sortConfig.key!] < b[sortConfig.key!]) {
@@ -229,7 +233,6 @@ export function DataTable() {
   };
 
   const handleExport = () => {
-    // Convert the data to CSV
     const headers = ["ID", "Date", "Rating", "Comment", "Branch", "Channel", "Sentiment"];
     const csvData = [
       headers.join(","),
@@ -237,24 +240,34 @@ export function DataTable() {
         item.id,
         item.date,
         item.rating,
-        `"${item.comment.replace(/"/g, '""')}"`, // Escape quotes in comments
+        `"${item.comment.replace(/"/g, '""')}"`,
         item.branch,
         item.channel,
         item.sentiment
       ].join(","))
     ].join("\n");
     
-    // Create a Blob with the CSV data
     const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    // Create a link element to download the CSV
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `responses_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const getCurrentPageData = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return responses.slice(startIndex, endIndex);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   return (
@@ -385,7 +398,7 @@ export function DataTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {responses.map((response) => (
+              {getCurrentPageData().map((response) => (
                 <TableRow key={response.id}>
                   <TableCell className="font-medium">{response.id}</TableCell>
                   <TableCell>{response.date}</TableCell>
@@ -413,23 +426,50 @@ export function DataTable() {
 
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">{responses.length}</span> of{" "}
-            <span className="font-medium">3,842</span> responses
+            Showing <span className="font-medium">{Math.min(itemsPerPage, responses.length)}</span> of{" "}
+            <span className="font-medium">{responses.length}</span> responses
           </p>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="icon" disabled>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => goToPage(currentPage - 1)} 
+              disabled={currentPage === 1}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" className="font-medium">
-              1
-            </Button>
-            <Button variant="outline" size="sm">
-              2
-            </Button>
-            <Button variant="outline" size="sm">
-              3
-            </Button>
-            <Button variant="outline" size="icon">
+            
+            {Array.from({ length: Math.min(totalPages, 3) }).map((_, i) => {
+              let pageNumber;
+              if (totalPages <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 2) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 1) {
+                pageNumber = totalPages - 2 + i;
+              } else {
+                pageNumber = currentPage - 1 + i;
+              }
+              
+              return (
+                <Button 
+                  key={pageNumber}
+                  variant="outline" 
+                  size="sm"
+                  className={currentPage === pageNumber ? "font-medium bg-primary text-primary-foreground" : ""}
+                  onClick={() => goToPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              );
+            })}
+            
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
