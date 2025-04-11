@@ -1,4 +1,3 @@
-
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -30,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { addDays, format, subDays } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 // Define types for our data
 type ResponseData = {
@@ -159,7 +159,7 @@ const Reports = () => {
   const [responses, setResponses] = useState<ResponseData[]>(initialResponses);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<"today" | "last7days" | "custom" | "all">("all");
-  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+  const [customDateRange, setCustomDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
   });
@@ -361,12 +361,9 @@ const Reports = () => {
                             <div className="flex items-center justify-center">
                               <CalendarComponent
                                 mode="range"
-                                selected={{
-                                  from: customDateRange.from,
-                                  to: customDateRange.to
-                                }}
+                                selected={customDateRange}
                                 onSelect={(range) => setCustomDateRange(range || { from: undefined, to: undefined })}
-                                className="rounded-md border"
+                                className="rounded-md border pointer-events-auto"
                               />
                             </div>
                             <div className="flex gap-2 justify-between text-sm">

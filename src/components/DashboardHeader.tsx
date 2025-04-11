@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
+import type { DateRange } from "react-day-picker";
 
 export function DashboardHeader() {
   const today = new Date();
@@ -21,7 +22,7 @@ export function DashboardHeader() {
   });
   
   const [dateRange, setDateRange] = useState<"last30days" | "last7days" | "today" | "custom">("last30days");
-  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+  const [customDateRange, setCustomDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
   });
@@ -126,10 +127,7 @@ export function DashboardHeader() {
               <div className="p-2">
                 <Calendar
                   mode="range"
-                  selected={{
-                    from: customDateRange.from,
-                    to: customDateRange.to
-                  }}
+                  selected={customDateRange}
                   onSelect={(range) => setCustomDateRange(range || { from: undefined, to: undefined })}
                   className="rounded-md border p-3 pointer-events-auto"
                 />
