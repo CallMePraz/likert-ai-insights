@@ -163,7 +163,7 @@ export function IndonesiaMap() {
               <rect x="240" y="10" width="20" height="10" fill="#fb923c" />
               <text x="265" y="19" className="text-xs">≥ 2.5</text>
               <rect x="300" y="10" width="20" height="10" fill="#ef4444" />
-              <text x="325" y="19" className="text-xs">< 2.5</text>
+              <text x="325" y="19" className="text-xs">&lt; 2.5</text>
             </g>
           </svg>
 
