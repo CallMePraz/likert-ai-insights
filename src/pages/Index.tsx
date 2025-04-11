@@ -24,7 +24,6 @@ const Index = () => {
         </div>
         
         <TopPerformanceTables />
-        <TopInsightsArea />
         <DataTable />
       </div>
       

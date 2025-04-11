@@ -5,80 +5,179 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ThumbsDown, ThumbsUp, ChevronUp, ChevronDown, BarChart3, ListFilter } from "lucide-react";
 
-// Mock data
-const goodPerformanceData = [
-  { parameter: "Staff Friendliness", rating: 4.8, change: "+0.3", trend: "up" },
-  { parameter: "Service Speed", rating: 4.6, change: "+0.5", trend: "up" },
-  { parameter: "Mobile Experience", rating: 4.5, change: "+0.2", trend: "up" },
-  { parameter: "Problem Resolution", rating: 4.3, change: "+0.1", trend: "up" },
-  { parameter: "Product Knowledge", rating: 4.2, change: "+0.4", trend: "up" }
+// Mock response data shared with Reports page
+const responseData = [
+  {
+    id: 1001,
+    date: "2025-04-10",
+    rating: 5,
+    comment: "Excellent service, the staff was very helpful and knowledgeable.",
+    branch: "Downtown",
+    channel: "in-person",
+    sentiment: "positive",
+    parameter: "Staff Friendliness"
+  },
+  {
+    id: 1002,
+    date: "2025-04-10",
+    rating: 2,
+    comment: "Had to wait for over 30 minutes to be served. Unacceptable.",
+    branch: "Westside",
+    channel: "in-person",
+    sentiment: "negative",
+    parameter: "Wait Times"
+  },
+  {
+    id: 1003,
+    date: "2025-04-09",
+    rating: 4,
+    comment: "Mobile app works great, but could use more features.",
+    branch: "Online",
+    channel: "mobile",
+    sentiment: "positive",
+    parameter: "Mobile Experience"
+  },
+  {
+    id: 1004,
+    date: "2025-04-09",
+    rating: 3,
+    comment: "Average experience. Nothing special to note.",
+    branch: "Northgate",
+    channel: "in-person",
+    sentiment: "neutral",
+    parameter: "Problem Resolution"
+  },
+  {
+    id: 1005,
+    date: "2025-04-08",
+    rating: 1,
+    comment: "App keeps crashing when trying to make a transfer. Very frustrating!",
+    branch: "Online",
+    channel: "mobile",
+    sentiment: "negative",
+    parameter: "App Reliability"
+  },
+  {
+    id: 1006,
+    date: "2025-04-08",
+    rating: 5,
+    comment: "The representative went above and beyond to help me resolve my issue.",
+    branch: "Eastside",
+    channel: "phone",
+    sentiment: "positive",
+    parameter: "Service Speed"
+  },
+  {
+    id: 1007,
+    date: "2025-04-07",
+    rating: 4,
+    comment: "Quick and efficient service. Would recommend.",
+    branch: "Downtown",
+    channel: "in-person",
+    sentiment: "positive",
+    parameter: "Service Speed"
+  },
+  {
+    id: 1008,
+    date: "2025-04-07",
+    rating: 1,
+    comment: "Terrible service. Will not be returning.",
+    branch: "Westside",
+    channel: "in-person",
+    sentiment: "negative",
+    parameter: "Fee Transparency"
+  },
+  {
+    id: 1009,
+    date: "2025-04-06",
+    rating: 3,
+    comment: "Service was okay. Nothing special but got the job done.",
+    branch: "Downtown",
+    channel: "in-person",
+    sentiment: "neutral",
+    parameter: "Account Access"
+  },
+  {
+    id: 1010,
+    date: "2025-04-06",
+    rating: 5,
+    comment: "Great experience! The new self-service kiosks are amazing.",
+    branch: "Eastside",
+    channel: "in-person",
+    sentiment: "positive",
+    parameter: "Product Knowledge"
+  },
+  {
+    id: 1011,
+    date: "2025-04-05",
+    rating: 2,
+    comment: "Website is confusing to navigate. Could not find what I needed.",
+    branch: "Online",
+    channel: "web",
+    sentiment: "negative",
+    parameter: "Issue Escalation"
+  },
+  {
+    id: 1012,
+    date: "2025-04-05",
+    rating: 4,
+    comment: "Representative was very patient with all my questions.",
+    branch: "Northgate",
+    channel: "phone",
+    sentiment: "positive",
+    parameter: "Product Knowledge"
+  }
 ];
 
-const badPerformanceData = [
-  { parameter: "Wait Times", rating: 2.4, change: "-0.3", trend: "down" },
-  { parameter: "App Reliability", rating: 2.6, change: "-0.4", trend: "down" },
-  { parameter: "Fee Transparency", rating: 2.7, change: "-0.2", trend: "down" },
-  { parameter: "Account Access", rating: 2.9, change: "-0.1", trend: "down" },
-  { parameter: "Issue Escalation", rating: 3.0, change: "-0.3", trend: "down" }
-];
+// Process data for good performance (rating >= 3)
+const goodPerformanceData = responseData
+  .filter(item => item.rating >= 3)
+  .sort((a, b) => b.rating - a.rating)
+  .slice(0, 5)
+  .map(item => ({
+    parameter: item.parameter,
+    rating: item.rating,
+    change: "+0.3", // Placeholder for now
+    trend: "up"
+  }));
+
+// Process data for bad performance (rating < 3)
+const badPerformanceData = responseData
+  .filter(item => item.rating < 3)
+  .sort((a, b) => a.rating - b.rating)
+  .slice(0, 5)
+  .map(item => ({
+    parameter: item.parameter,
+    rating: item.rating,
+    change: "-0.3", // Placeholder for now
+    trend: "down"
+  }));
 
 // Positive insights for cards
-const positiveInsights = [
-  { 
-    parameter: "Staff Friendliness", 
-    rating: 4.8,
-    aiInsight: "Consistently mentioned as exceptional across all branches."
-  },
-  { 
-    parameter: "Service Speed", 
-    rating: 4.6,
-    aiInsight: "Improved 15% from previous quarter after new queue system."
-  },
-  { 
-    parameter: "Mobile Experience", 
-    rating: 4.5,
-    aiInsight: "Recent app update received very positive feedback."
-  },
-  { 
-    parameter: "Problem Resolution", 
-    rating: 4.3,
-    aiInsight: "First-contact resolution rate has increased significantly."
-  },
-  { 
-    parameter: "Product Knowledge", 
-    rating: 4.2,
-    aiInsight: "Staff training program shows measurable results."
-  }
-];
+const positiveInsights = goodPerformanceData.map(item => {
+  // Get corresponding response for AI insight
+  const relatedResponse = responseData.find(resp => resp.parameter === item.parameter && resp.rating >= 3);
+  return {
+    parameter: item.parameter,
+    rating: item.rating,
+    aiInsight: relatedResponse 
+      ? `Customer feedback: "${relatedResponse.comment.substring(0, 60)}${relatedResponse.comment.length > 60 ? '...' : ''}"`
+      : "Consistently rated highly by customers."
+  };
+});
 
 // Improvement areas for cards
-const improvementAreas = [
-  { 
-    parameter: "Wait Times", 
-    rating: 2.4,
-    aiInsight: "Consider adding more staff during peak hours (12-2pm)."
-  },
-  { 
-    parameter: "App Reliability", 
-    rating: 2.6,
-    aiInsight: "Frequent crashes reported on Android devices."
-  },
-  { 
-    parameter: "Fee Transparency", 
-    rating: 2.7,
-    aiInsight: "Customers request clearer explanation of service fees."
-  },
-  { 
-    parameter: "Account Access", 
-    rating: 2.9,
-    aiInsight: "Login process considered too complex by many users."
-  },
-  { 
-    parameter: "Issue Escalation", 
-    rating: 3.0,
-    aiInsight: "Need better process for handling complex complaints."
-  }
-];
+const improvementAreas = badPerformanceData.map(item => {
+  // Get corresponding response for AI suggestion
+  const relatedResponse = responseData.find(resp => resp.parameter === item.parameter && resp.rating < 3);
+  return {
+    parameter: item.parameter,
+    rating: item.rating,
+    aiInsight: relatedResponse
+      ? `Based on feedback: "${relatedResponse.comment.substring(0, 60)}${relatedResponse.comment.length > 60 ? '...' : ''}"`
+      : "Consider investigating reasons for low ratings."
+  };
+});
 
 export function TopPerformanceTables() {
   const [showPositiveTable, setShowPositiveTable] = useState(false);
