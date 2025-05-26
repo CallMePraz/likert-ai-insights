@@ -1,9 +1,19 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ThumbsDown, ThumbsUp, ChevronUp, ChevronDown, BarChart3, ListFilter } from "lucide-react";
+import { getSurveyData, getTopPerformance, getBadPerformance } from "../services/api";
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
+}
+
+const FILTERS = [
+  { label: "Today", value: "today" },
+  { label: "Last 7 Days", value: "last7" },
+  { label: "All Time", value: "all" },
+];
 
 // Mock response data shared with Reports page
 const responseData = [
@@ -180,158 +190,86 @@ const improvementAreas = badPerformanceData.map(item => {
 });
 
 export function TopPerformanceTables() {
-  const [showPositiveTable, setShowPositiveTable] = useState(false);
-  const [showNegativeTable, setShowNegativeTable] = useState(false);
+  const [filter, setFilter] = useState("today");
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 5;
+
+  const [negFilter, setNegFilter] = useState("today");
+  const [negData, setNegData] = useState([]);
+  const [negLoading, setNegLoading] = useState(false);
+  const [negError, setNegError] = useState("");
+  const [negPage, setNegPage] = useState(1);
+  const [negTotalCount, setNegTotalCount] = useState(0);
+  const NEG_PAGE_SIZE = 5;
+
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [negSortOrder, setNegSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+      setError("");
+      let startDate: string | undefined = undefined;
+      let endDate: string | undefined = undefined;
+      const today = new Date();
+      if (filter === "today") {
+        startDate = today.toISOString().slice(0, 10);
+        endDate = startDate;
+      } else if (filter === "last7") {
+        const last7 = new Date(today);
+        last7.setDate(today.getDate() - 6);
+        startDate = last7.toISOString().slice(0, 10);
+        endDate = today.toISOString().slice(0, 10);
+      }
+      try {
+        const response = await getTopPerformance(PAGE_SIZE, (page - 1) * PAGE_SIZE, "rating", sortOrder, startDate, endDate);
+        setData(response.data);
+        setTotalCount(response.totalCount);
+      } catch (e) {
+        setError("Gagal memuat data performa.");
+      }
+      setLoading(false);
+    }
+    fetchData();
+  }, [filter, page, sortOrder]);
+
+  useEffect(() => {
+    async function fetchNegData() {
+      setNegLoading(true);
+      setNegError("");
+      let startDate: string | undefined = undefined;
+      let endDate: string | undefined = undefined;
+      const today = new Date();
+      if (negFilter === "today") {
+        startDate = today.toISOString().slice(0, 10);
+        endDate = startDate;
+      } else if (negFilter === "last7") {
+        const last7 = new Date(today);
+        last7.setDate(today.getDate() - 6);
+        startDate = last7.toISOString().slice(0, 10);
+        endDate = today.toISOString().slice(0, 10);
+      }
+      try {
+        const response = await getBadPerformance(NEG_PAGE_SIZE, (negPage - 1) * NEG_PAGE_SIZE, "rating", negSortOrder, startDate, endDate);
+        setNegData(response.data);
+        setNegTotalCount(response.totalCount);
+      } catch (e) {
+        setNegError("Gagal memuat data performa.");
+      }
+      setNegLoading(false);
+    }
+    fetchNegData();
+  }, [negFilter, negPage, negSortOrder]);
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const negTotalPages = Math.ceil(negTotalCount / NEG_PAGE_SIZE);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      {/* Top positive performance card with flip functionality */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <ThumbsUp className="w-5 h-5 mr-2 text-likert-positive" />
-              <CardTitle>Top Positive Parameters</CardTitle>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowPositiveTable(!showPositiveTable)}
-              className="h-8 w-8 p-0"
-            >
-              {showPositiveTable ? <ListFilter className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
-            </Button>
-          </div>
-          <CardDescription>Areas where we're excelling (★ ≥ 3)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!showPositiveTable ? (
-            // Card view - regular insights
-            <div className="space-y-4">
-              {positiveInsights.map((item, index) => (
-                <div key={index} className="insight-card p-3 rounded-md border bg-card">
-                  <div className="flex justify-between items-center mb-1">
-                    <h4 className="font-medium">{item.parameter}</h4>
-                    <div className="flex items-center bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded">
-                      <span className="text-likert-positive font-medium">{item.rating}</span>
-                      <span className="text-xs text-muted-foreground ml-1">/ 5</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-primary">AI Insight:</span> {item.aiInsight}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            // Table view - performance data
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Parameter</TableHead>
-                    <TableHead className="text-right">Rating</TableHead>
-                    <TableHead className="text-right">Change</TableHead>
-                    <TableHead className="text-right">Trend</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {goodPerformanceData.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{item.parameter}</TableCell>
-                      <TableCell className="text-right">{item.rating}</TableCell>
-                      <TableCell className="text-right text-likert-positive">
-                        {item.change}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.trend === "up" ? (
-                          <ChevronUp className="inline h-4 w-4 text-likert-positive" />
-                        ) : (
-                          <ChevronDown className="inline h-4 w-4 text-likert-negative" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Top improvement areas card with flip functionality */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <ThumbsDown className="w-5 h-5 mr-2 text-likert-negative" />
-              <CardTitle>Top Improvement Areas</CardTitle>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowNegativeTable(!showNegativeTable)}
-              className="h-8 w-8 p-0"
-            >
-              {showNegativeTable ? <ListFilter className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
-            </Button>
-          </div>
-          <CardDescription>Areas needing attention (★ &lt; 3)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!showNegativeTable ? (
-            // Card view - regular insights
-            <div className="space-y-4">
-              {improvementAreas.map((item, index) => (
-                <div key={index} className="insight-card p-3 rounded-md border bg-card">
-                  <div className="flex justify-between items-center mb-1">
-                    <h4 className="font-medium">{item.parameter}</h4>
-                    <div className="flex items-center bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded">
-                      <span className="text-likert-negative font-medium">{item.rating}</span>
-                      <span className="text-xs text-muted-foreground ml-1">/ 5</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-primary">AI Suggestion:</span> {item.aiInsight}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            // Table view - performance data
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Parameter</TableHead>
-                    <TableHead className="text-right">Rating</TableHead>
-                    <TableHead className="text-right">Change</TableHead>
-                    <TableHead className="text-right">Trend</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {badPerformanceData.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{item.parameter}</TableCell>
-                      <TableCell className="text-right">{item.rating}</TableCell>
-                      <TableCell className="text-right text-likert-negative">
-                        {item.change}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.trend === "up" ? (
-                          <ChevronUp className="inline h-4 w-4 text-likert-positive" />
-                        ) : (
-                          <ChevronDown className="inline h-4 w-4 text-likert-negative" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div>
     </div>
   );
 }

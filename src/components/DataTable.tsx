@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,18 +26,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { addDays, format, subDays } from "date-fns";
+import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { getSurveyData } from "@/services/api";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { SearchInput } from "@/components/SearchInput";
 
 type ResponseData = {
   id: number;
@@ -45,182 +40,224 @@ type ResponseData = {
   rating: number;
   comment: string;
   branch: string;
-  channel: string;
   sentiment: "positive" | "neutral" | "negative";
+  teller_id: string;
 };
 
 export function DataTable() {
-  const initialResponses: ResponseData[] = [
-    {
-      id: 1001,
-      date: "2025-04-10",
-      rating: 5,
-      comment: "Excellent service, the staff was very helpful and knowledgeable.",
-      branch: "Downtown",
-      channel: "in-person",
-      sentiment: "positive",
-    },
-    {
-      id: 1002,
-      date: "2025-04-10",
-      rating: 2,
-      comment: "Had to wait for over 30 minutes to be served. Unacceptable.",
-      branch: "Westside",
-      channel: "in-person",
-      sentiment: "negative",
-    },
-    {
-      id: 1003,
-      date: "2025-04-09",
-      rating: 4,
-      comment: "Mobile app works great, but could use more features.",
-      branch: "Online",
-      channel: "mobile",
-      sentiment: "positive",
-    },
-    {
-      id: 1004,
-      date: "2025-04-09",
-      rating: 3,
-      comment: "Average experience. Nothing special to note.",
-      branch: "Northgate",
-      channel: "in-person",
-      sentiment: "neutral",
-    },
-    {
-      id: 1005,
-      date: "2025-04-08",
-      rating: 1,
-      comment: "App keeps crashing when trying to make a transfer. Very frustrating!",
-      branch: "Online",
-      channel: "mobile",
-      sentiment: "negative",
-    },
-    {
-      id: 1006,
-      date: "2025-04-08",
-      rating: 5,
-      comment: "The representative went above and beyond to help me resolve my issue.",
-      branch: "Eastside",
-      channel: "phone",
-      sentiment: "positive",
-    },
-    {
-      id: 1007,
-      date: "2025-04-07",
-      rating: 4,
-      comment: "Quick and efficient service. Would recommend.",
-      branch: "Downtown",
-      channel: "in-person",
-      sentiment: "positive",
-    },
-  ];
-
-  const [responses, setResponses] = useState<ResponseData[]>(initialResponses);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [responses, setResponses] = useState<ResponseData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<"today" | "last7days" | "custom" | "all">("all");
-  const [customDateRange, setCustomDateRange] = useState<DateRange>({
-    from: undefined,
-    to: undefined,
-  });
+  const [customDateRange, setCustomDateRange] = useState<DateRange>();
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ResponseData | null; direction: 'ascending' | 'descending' | null }>({
     key: null,
     direction: null,
   });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const totalPages = Math.ceil(responses.length / itemsPerPage);
+  const [totalItems, setTotalItems] = useState(0);
+  const [serverDate, setServerDate] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const getStartDate = () => {
+    if (dateFilter === "today") {
+      return serverDate || format(new Date(), 'yyyy-MM-dd');
+    }
+    if (dateFilter === "last7days") {
+      const lastWeek = new Date();
+      lastWeek.setDate(new Date().getDate() - 7);
+      return format(lastWeek, 'yyyy-MM-dd');
+    }
+    if (dateFilter === "custom" && customDateRange?.from) {
+      return format(customDateRange.from, 'yyyy-MM-dd');
+    }
+    return undefined;
+  };
+
+  const getEndDate = () => {
+    if (dateFilter === "today" || dateFilter === "last7days") {
+      return serverDate || format(new Date(), 'yyyy-MM-dd');
+    }
+    if (dateFilter === "custom" && customDateRange?.to) {
+      return format(customDateRange.to, 'yyyy-MM-dd');
+    }
+    return undefined;
+  };
+
+  const handleSearch = (searchTerm: string) => {
+    setSearchTerm(searchTerm);
+    fetchResponses();
+  };
+
+  const fetchResponses = async () => {
+    try {
+      setIsLoading(true);
+      setLoading(true);
+      const offset = (currentPage - 1) * itemsPerPage;
+      
+      const startDate = getStartDate();
+      const endDate = getEndDate();
+      
+      console.log('Fetching data with:', {
+        page: currentPage,
+        dateFilter,
+        startDate,
+        endDate,
+        offset,
+        limit: itemsPerPage,
+        searchTerm
+      });
+      
+      const response = await getSurveyData(
+        itemsPerPage, 
+        offset,
+        sortConfig.key,
+        sortConfig.direction === 'ascending' ? 'asc' : 'desc',
+        startDate,
+        endDate,
+        searchTerm
+      );
+      
+      console.log('API Response:', {
+        total: response.totalCount,
+        dataLength: response.data.length,
+        firstDate: response.data[0]?.date,
+        lastDate: response.data[response.data.length - 1]?.date,
+        serverDate: response.serverDate
+      });
+      
+      setResponses(response.data);
+      setTotalItems(response.totalCount);
+      setServerDate(response.serverDate);
+      setError(null);
+      setIsLoading(false);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching responses:', err);
+      setError('Failed to fetch survey data');
+      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleCustomDateChange = (range: DateRange | undefined) => {
+    if (range) {
+      // Ensure start date is not after end date
+      if (range.from && range.to && range.from > range.to) {
+        toast.error("Start date cannot be after end date");
+        return;
+      }
+      setCustomDateRange(range);
+      // Trigger data fetch when dates are selected
+      fetchResponses();
+    } else {
+      setCustomDateRange(undefined);
+    }
+  };
+
+  const handleSubmitCustomDate = async () => {
+    if (!customDateRange?.from || !customDateRange.to) {
+      toast.error("Please select both start and end dates");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      // Fetch data with the selected date range
+      const offset = (currentPage - 1) * itemsPerPage;
+      const response = await getSurveyData(
+        itemsPerPage, 
+        offset,
+        sortConfig.key,
+        sortConfig.direction === 'ascending' ? 'asc' : 'desc',
+        format(customDateRange.from, 'yyyy-MM-dd'),
+        format(customDateRange.to, 'yyyy-MM-dd')
+      );
+
+      setResponses(response.data);
+      setTotalItems(response.totalCount);
+      setError(null);
+      setLoading(false);
+      setIsSubmitting(false);
+    } catch (error) {
+      console.error('Error fetching custom date range:', error);
+      toast.error('Failed to fetch data for selected date range');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDateFilterChange = (value: "today" | "last7days" | "custom" | "all") => {
+    setDateFilter(value);
+    if (value !== "custom") {
+      setCustomDateRange(undefined);
+      setCurrentPage(1);
+      setSortConfig({ key: null, direction: null });
+    }
+    // Trigger data fetch when filter changes
+    fetchResponses();
+  };
 
   useEffect(() => {
-    let filteredData = [...initialResponses];
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filteredData = filteredData.filter(
-        (item) =>
-          item.id.toString().includes(query) ||
-          item.date.toLowerCase().includes(query) ||
-          item.rating.toString().includes(query) ||
-          item.comment.toLowerCase().includes(query) ||
-          item.branch.toLowerCase().includes(query) ||
-          item.channel.toLowerCase().includes(query) ||
-          item.sentiment.toLowerCase().includes(query)
-      );
-    }
-    
-    if (dateFilter !== "all") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (dateFilter === "today") {
-        const todayStr = format(today, "yyyy-MM-dd");
-        filteredData = filteredData.filter((item) => item.date === todayStr);
-      } else if (dateFilter === "last7days") {
-        const sevenDaysAgo = subDays(today, 7);
-        filteredData = filteredData.filter((item) => {
-          const itemDate = new Date(item.date);
-          return itemDate >= sevenDaysAgo && itemDate <= today;
-        });
-      } else if (dateFilter === "custom" && customDateRange.from) {
-        const fromDate = customDateRange.from;
-        const toDate = customDateRange.to || fromDate;
-        
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999);
-        
-        filteredData = filteredData.filter((item) => {
-          const itemDate = new Date(item.date);
-          return itemDate >= fromDate && itemDate <= endDate;
-        });
-      }
-    }
-    
-    if (sortConfig.key) {
-      filteredData.sort((a, b) => {
-        if (a[sortConfig.key!] < b[sortConfig.key!]) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (a[sortConfig.key!] > b[sortConfig.key!]) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    
-    setResponses(filteredData);
-  }, [searchQuery, dateFilter, customDateRange, sortConfig, initialResponses]);
+    fetchResponses();
+  }, [currentPage, itemsPerPage, sortConfig.key, sortConfig.direction, dateFilter, totalItems, searchTerm]);
 
-  const getSentimentColor = (sentiment: string): string => {
-    switch (sentiment) {
-      case "positive":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "neutral":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      case "negative":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-      default:
-        return "";
+  useEffect(() => {
+    if (dateFilter === "custom") {
+      setCalendarOpen(true);
+    } else {
+      setCalendarOpen(false);
+      setCustomDateRange(undefined);
+    }
+  }, [dateFilter]);
+
+  useEffect(() => {
+    console.log('State update:', {
+      currentPage,
+      totalItems,
+      responsesLength: responses.length,
+      firstResponseId: responses[0]?.id,
+      lastResponseId: responses[responses.length - 1]?.id
+    });
+  }, [responses, currentPage, totalItems]);
+
+  useEffect(() => {
+    console.log('Sort config changed:', {
+      key: sortConfig.key,
+      direction: sortConfig.direction,
+      currentPage,
+      itemsPerPage
+    });
+  }, [sortConfig.key, sortConfig.direction, currentPage, itemsPerPage]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= Math.ceil(totalItems / itemsPerPage)) {
+      setCurrentPage(newPage);
+      console.log('Page changed to:', newPage);
     }
   };
 
-  const getRatingColor = (rating: number): string => {
-    if (rating >= 4) return "text-likert-positive";
-    if (rating >= 3) return "text-likert-neutral";
-    return "text-likert-negative";
-  };
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  console.log('Pagination info:', { totalPages, currentPage, totalItems, itemsPerPage });
 
   const handleSort = (key: keyof ResponseData) => {
-    let direction: 'ascending' | 'descending' | null = 'ascending';
+    console.log('Sorting by:', key);
+    console.log('Current sort config:', sortConfig);
     
+    // If clicking on the same column, toggle direction
     if (sortConfig.key === key) {
       if (sortConfig.direction === 'ascending') {
-        direction = 'descending';
-      } else if (sortConfig.direction === 'descending') {
-        direction = null;
+        setSortConfig({ key, direction: 'descending' });
+      } else {
+        setSortConfig({ key, direction: 'ascending' });
       }
+    } else {
+      // If clicking on a different column, set it to ascending
+      setSortConfig({ key, direction: 'ascending' });
     }
-    
-    setSortConfig({ key: direction ? key : null, direction });
   };
 
   const getSortIcon = (key: keyof ResponseData) => {
@@ -233,16 +270,16 @@ export function DataTable() {
   };
 
   const handleExport = () => {
-    const headers = ["ID", "Date", "Rating", "Comment", "Branch", "Channel", "Sentiment"];
+    const headers = ["ID", "Teller ID", "Date", "Rating", "Comment", "Branch", "Sentiment"];
     const csvData = [
       headers.join(","),
       ...responses.map(item => [
         item.id,
+        item.teller_id,
         item.date,
         item.rating,
         `"${item.comment.replace(/"/g, '""')}"`,
         item.branch,
-        item.channel,
         item.sentiment
       ].join(","))
     ].join("\n");
@@ -264,93 +301,161 @@ export function DataTable() {
     return responses.slice(startIndex, endIndex);
   };
 
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="flex items-center space-x-2">
+            <div className="h-3 w-3 bg-likert-primary rounded-full"></div>
+            <CardTitle className="text-2xl font-bold text-likert-primary">Recent Responses</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center h-32">
+            Loading...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="flex items-center space-x-2">
+            <div className="h-3 w-3 bg-likert-primary rounded-full"></div>
+            <CardTitle className="text-2xl font-bold text-likert-primary">Recent Responses</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="text-red-500">{error}</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getSentimentColor = (sentiment: string): string => {
+    switch (sentiment) {
+      case "positive":
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      case "neutral":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+      case "negative":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      default:
+        return "";
     }
+  };
+
+  const getRatingColor = (rating: number): string => {
+    if (rating >= 4) return "text-likert-positive";
+    if (rating >= 3) return "text-likert-neutral";
+    return "text-likert-negative";
   };
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle>Recent Responses</CardTitle>
-            <CardDescription>Latest feedback from customers</CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search responses..."
-                className="w-full md:w-64 pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-1">
-                  <Filter className="h-4 w-4" />
-                  <span>Filter</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="space-y-4">
-                  <h4 className="font-medium">Filter by date</h4>
-                  <Select
-                    value={dateFilter}
-                    onValueChange={(value: "today" | "last7days" | "custom" | "all") => setDateFilter(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select date range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All dates</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="last7days">Last 7 days</SelectItem>
-                      <SelectItem value="custom">Custom range</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {dateFilter === "custom" && (
-                    <div className="border rounded-md p-3">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-center">
-                          <CalendarComponent
-                            mode="range"
-                            selected={customDateRange}
-                            onSelect={(range) => setCustomDateRange(range || { from: undefined, to: undefined })}
-                            className="rounded-md border pointer-events-auto"
-                          />
-                        </div>
-                        <div className="flex gap-2 justify-between text-sm">
-                          <div>
-                            <p className="font-medium">From</p>
-                            <p>{customDateRange.from ? format(customDateRange.from, "PP") : "Pick a date"}</p>
-                          </div>
-                          <div>
-                            <p className="font-medium">To</p>
-                            <p>{customDateRange.to ? format(customDateRange.to, "PP") : "Pick a date"}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1"
-              onClick={handleExport}
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="flex items-center space-x-2">
+          <div className="h-3 w-3 bg-likert-primary rounded-full"></div>
+          <CardTitle className="text-2xl font-bold text-likert-primary">Recent Responses</CardTitle>
+        </div>
+        <div className="flex items-center space-x-4">
+          <SearchInput 
+            onSearch={handleSearch} 
+            value={searchTerm}
+            isLoading={isLoading}
+          />
+          <div className="flex items-center space-x-4">
+            <Select
+              value={dateFilter}
+              onValueChange={handleDateFilterChange}
             >
-              <Download className="h-4 w-4" />
-              <span>Export</span>
-            </Button>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="last7days">Last 7 Days</SelectItem>
+                <SelectItem value="custom">Custom Date</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {calendarOpen && (
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <CalendarComponent
+                    mode="range"
+                    selected={customDateRange}
+                    onSelect={handleCustomDateChange}
+                    initialFocus
+                    className="rounded-md border"
+                  />
+                </div>
+                
+                {/* Show selected dates */}
+                <div className="flex flex-col items-start space-y-1">
+                  <span className="text-sm text-gray-500">Selected dates:</span>
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">From:</span>
+                      <span className="text-gray-600">
+                        {customDateRange?.from 
+                          ? format(customDateRange.from, "PPP")
+                          : "Not selected"}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">To:</span>
+                      <span className="text-gray-600">
+                        {customDateRange?.to 
+                          ? format(customDateRange.to, "PPP")
+                          : "Not selected"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Add submit button */}
+                <Button
+                  onClick={handleSubmitCustomDate}
+                  disabled={!customDateRange?.from || !customDateRange.to || isSubmitting}
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Apply Filter"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={handleExport}
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDateFilter("all");
+              setCustomDateRange(undefined);
+              setResponses([]);
+              setCurrentPage(1);
+            }}
+          >
+            Reset Filter
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -359,119 +464,123 @@ export function DataTable() {
             <TableHeader>
               <TableRow>
                 <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("id")}
+                  className="w-[100px] cursor-pointer"
+                  onClick={() => handleSort('id')}
                 >
-                  ID {getSortIcon("id")}
+                  ID {getSortIcon('id')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("date")}
+                  className="w-[150px] cursor-pointer"
+                  onClick={() => handleSort('teller_id')}
                 >
-                  Date {getSortIcon("date")}
+                  Teller ID {getSortIcon('teller_id')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("rating")}
+                  className="w-[150px] cursor-pointer"
+                  onClick={() => handleSort('date')}
                 >
-                  Rating {getSortIcon("rating")}
-                </TableHead>
-                <TableHead className="w-[300px]">Comment</TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("branch")}
-                >
-                  Branch {getSortIcon("branch")}
+                  Date {getSortIcon('date')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("channel")}
+                  className="w-[100px] cursor-pointer"
+                  onClick={() => handleSort('rating')}
                 >
-                  Channel {getSortIcon("channel")}
+                  Rating {getSortIcon('rating')}
+                </TableHead>
+                <TableHead className="max-w-[300px] truncate">Comment</TableHead>
+                <TableHead 
+                  className="w-[150px] cursor-pointer"
+                  onClick={() => handleSort('branch')}
+                >
+                  Branch {getSortIcon('branch')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("sentiment")}
+                  className="w-[120px] cursor-pointer"
+                  onClick={() => handleSort('sentiment')}
                 >
-                  Sentiment {getSortIcon("sentiment")}
+                  Sentiment {getSortIcon('sentiment')}
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {getCurrentPageData().map((response) => (
-                <TableRow key={response.id}>
-                  <TableCell className="font-medium">{response.id}</TableCell>
-                  <TableCell>{response.date}</TableCell>
-                  <TableCell className={getRatingColor(response.rating)}>
-                    {response.rating} ★
-                  </TableCell>
-                  <TableCell className="max-w-[300px] truncate">
-                    {response.comment}
-                  </TableCell>
-                  <TableCell>{response.branch}</TableCell>
-                  <TableCell className="capitalize">{response.channel}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={`${getSentimentColor(response.sentiment)} capitalize`}
-                    >
-                      {response.sentiment}
-                    </Badge>
+              {responses.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-4">
+                    {loading ? 'Loading...' : 'No responses found'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                responses.map((response) => (
+                  <TableRow key={response.id}>
+                    <TableCell className="font-mono">{response.id}</TableCell>
+                    <TableCell>{response.teller_id}</TableCell>
+                    <TableCell>{format(new Date(response.date), 'MMM d, yyyy')}</TableCell>
+                    <TableCell className={`text-center ${getRatingColor(response.rating)}`}>
+                      {response.rating}
+                    </TableCell>
+                    <TableCell className="max-w-[300px] truncate">
+                      {response.comment}
+                    </TableCell>
+                    <TableCell>{response.branch}</TableCell>
+                    <TableCell>
+                      <Badge className={getSentimentColor(response.sentiment)}>
+                        {response.sentiment}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
-        </div>
-
-        <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">{Math.min(itemsPerPage, responses.length)}</span> of{" "}
-            <span className="font-medium">{responses.length}</span> responses
-          </p>
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => goToPage(currentPage - 1)} 
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            
-            {Array.from({ length: Math.min(totalPages, 3) }).map((_, i) => {
-              let pageNumber;
-              if (totalPages <= 3) {
-                pageNumber = i + 1;
-              } else if (currentPage <= 2) {
-                pageNumber = i + 1;
-              } else if (currentPage >= totalPages - 1) {
-                pageNumber = totalPages - 2 + i;
-              } else {
-                pageNumber = currentPage - 1 + i;
-              }
+          <div className="mt-4 flex justify-between items-center">
+            <div className="text-sm text-muted-foreground">
+              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)} to 
+              {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} results
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => handlePageChange(currentPage - 1)} 
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               
-              return (
-                <Button 
-                  key={pageNumber}
-                  variant="outline" 
-                  size="sm"
-                  className={currentPage === pageNumber ? "font-medium bg-primary text-primary-foreground" : ""}
-                  onClick={() => goToPage(pageNumber)}
-                >
-                  {pageNumber}
-                </Button>
-              );
-            })}
-            
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+              {Array.from({ length: Math.min(totalPages, 3) }).map((_, i) => {
+                let pageNumber;
+                if (totalPages <= 3) {
+                  pageNumber = i + 1;
+                } else if (currentPage <= 2) {
+                  pageNumber = i + 1;
+                } else if (currentPage >= totalPages - 1) {
+                  pageNumber = totalPages - 2 + i;
+                } else {
+                  pageNumber = currentPage - 1 + i;
+                }
+                
+                return (
+                  <Button 
+                    key={pageNumber}
+                    variant="outline" 
+                    size="sm"
+                    className={currentPage === pageNumber ? "font-medium bg-primary text-primary-foreground" : ""}
+                    onClick={() => handlePageChange(pageNumber)}
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+              
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>

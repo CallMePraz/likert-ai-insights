@@ -1,4 +1,3 @@
-
 import { Bell, HelpCircle, Search, Settings, UserCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +40,8 @@ export function Navbar() {
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
+              id="navbar-search"
+              name="navbar-search"
               type="search"
               placeholder="Search..."
               className="w-64 pl-8"
